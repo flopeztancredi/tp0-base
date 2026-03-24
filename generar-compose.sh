@@ -16,7 +16,7 @@ OUTPUT_FILE=$1
 N_CLIENTS=$2
 
 # Write server service definition to the output file
-cat > $OUTPUT_FILE << 'EOF'
+cat > $OUTPUT_FILE << EOF
 name: tp0
 services:
   server:
