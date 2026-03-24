@@ -8,21 +8,25 @@ import (
 )
 
 const (
-	MsgTypeBet uint8 = 0x01
-	MsgTypeAck uint8 = 0x02
-	AckSuccess uint8 = 0x00
-	AckFailure uint8 = 0x01
+	MsgTypeBet   uint8 = 0x01
+	MsgTypeAck   uint8 = 0x02
+	MsgTypeBatch uint8 = 0x03
+	AckSuccess   uint8 = 0x00
+	AckFailure   uint8 = 0x01
 )
 
-func SendBet(conn net.Conn, bet *bet.Bet) error {
+func SendBatch(conn net.Conn, bets []*bet.Bet) error {
 	enc := NewEncoder()
-	enc.WriteUint8(MsgTypeBet)
-	enc.WriteUint32(bet.Agency)
-	enc.WriteString(bet.FirstName)
-	enc.WriteString(bet.LastName)
-	enc.WriteUint32(bet.Document)
-	enc.WriteFixedString(bet.Birthdate)
-	enc.WriteUint32(bet.Number)
+	enc.WriteUint8(MsgTypeBatch)
+	enc.WriteUint16(uint16(len(bets)))
+	for _, bet := range bets {
+		enc.WriteUint32(bet.Agency)
+		enc.WriteString(bet.FirstName)
+		enc.WriteString(bet.LastName)
+		enc.WriteUint32(bet.Document)
+		enc.WriteFixedString(bet.Birthdate)
+		enc.WriteUint32(bet.Number)
+	}
 
 	data, err := enc.Bytes()
 	if err != nil {

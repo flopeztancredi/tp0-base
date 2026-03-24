@@ -5,15 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/op/go-logging"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 
-	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/bet"
 	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/common"
 )
 
@@ -84,30 +81,6 @@ func PrintConfig(v *viper.Viper) {
 	)
 }
 
-func InitBet(agencyID string) (*bet.Bet, error) {
-	v := viper.New()
-	v.AutomaticEnv()
-	v.BindEnv("nombre")
-	v.BindEnv("apellido")
-	v.BindEnv("documento")
-	v.BindEnv("nacimiento")
-	v.BindEnv("numero")
-
-	agency, err := strconv.ParseUint(agencyID, 10, 32)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Could not parse agency id %s as uint32", agencyID)
-	}
-
-	return bet.NewBet(
-		uint32(agency),
-		v.GetString("nombre"),
-		v.GetString("apellido"),
-		uint32(v.GetInt("documento")),
-		v.GetString("nacimiento"),
-		uint32(v.GetInt("numero")),
-	)
-}
-
 func main() {
 	v, err := InitConfig()
 	if err != nil {
@@ -121,19 +94,21 @@ func main() {
 	// Print program config with debugging purposes
 	PrintConfig(v)
 
-	bet, err := InitBet(v.GetString("id"))
+	file, err := os.Open(v.GetString("data.filepath"))
 	if err != nil {
-		log.Criticalf("%s", err)
+		log.Criticalf("action: open_file | result: fail | client_id: %s | error: %s", v.GetString("id"), err)
 	}
+	defer file.Close()
 
 	clientConfig := common.ClientConfig{
-		ServerAddress: v.GetString("server.address"),
-		ID:            v.GetString("id"),
+		ServerAddress:  v.GetString("server.address"),
+		ID:             v.GetString("id"),
+		BatchMaxAmount: v.GetInt("batch.maxAmount"),
 	}
 
 	client := common.NewClient(clientConfig)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
 
-	client.StartClientLoop(ctx, bet)
+	client.StartClientLoop(ctx, file)
 }

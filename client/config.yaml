@@ -4,4 +4,6 @@ server:
 log:
   level: "INFO"
 batch:
-  maxAmount: 10
+  maxAmount: 100
+data:
+  filepath: "/data/agency.csv"
