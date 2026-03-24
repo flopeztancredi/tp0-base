@@ -36,6 +36,7 @@ func InitConfig() (*viper.Viper, error) {
 	v.BindEnv("id")
 	v.BindEnv("server", "address")
 	v.BindEnv("log", "level")
+	v.BindEnv("data.filepath")
 
 	// Try to read configuration from config file. If config file
 	// does not exists then ReadInConfig will fail but configuration
@@ -97,6 +98,7 @@ func main() {
 	file, err := os.Open(v.GetString("data.filepath"))
 	if err != nil {
 		log.Criticalf("action: open_file | result: fail | client_id: %s | error: %s", v.GetString("id"), err)
+		os.Exit(1)
 	}
 	defer file.Close()
 

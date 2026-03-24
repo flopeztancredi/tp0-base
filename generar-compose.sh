@@ -41,6 +41,7 @@ cat >> $OUTPUT_FILE << EOF
     entrypoint: /client
     environment:
       - CLI_ID=$i
+      - CLI_DATA_FILEPATH=/data/agency.csv
     networks:
       - testing_net
     depends_on:

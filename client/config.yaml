@@ -5,5 +5,3 @@ log:
   level: "INFO"
 batch:
   maxAmount: 100
-data:
-  filepath: "/data/agency.csv"
