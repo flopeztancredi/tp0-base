@@ -12,12 +12,6 @@ if ! [[ "$2" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
-# Validate that at least one client is specified
-if [ "$2" -lt 1 ]; then
-    echo "Error: number_of_clients must be at least 1."
-    exit 1
-fi
-
 OUTPUT_FILE=$1
 N_CLIENTS=$2
 
