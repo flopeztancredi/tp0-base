@@ -2,6 +2,7 @@ package bet
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -31,6 +32,25 @@ func NewBet(agency uint32, firstName string, lastName string, document uint32, b
 	return bet, nil
 }
 
+func NewBetFromCSVRecord(agency string, record []string) (*Bet, error) {
+	agencyUint, err := strconv.ParseUint(agency, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid agency: %v", err)
+	}
+
+	documentUint, err := strconv.ParseUint(record[2], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid document: %v", err)
+	}
+
+	numberUint, err := strconv.ParseUint(record[4], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid number: %v", err)
+	}
+
+	return NewBet(uint32(agencyUint), record[0], record[1], uint32(documentUint), record[3], uint32(numberUint))
+}
+
 func (b *Bet) validate() error {
 	if b.Agency == 0 {
 		return fmt.Errorf("agency must be greater than 0")
@@ -41,14 +61,8 @@ func (b *Bet) validate() error {
 	if b.LastName == "" {
 		return fmt.Errorf("last name must not be empty")
 	}
-	if b.Document == 0 {
-		return fmt.Errorf("document must be greater than 0")
-	}
 	if _, err := time.Parse("2006-01-02", b.Birthdate); err != nil {
 		return fmt.Errorf("birthday must be in the format YYYY-MM-DD")
-	}
-	if b.Number == 0 {
-		return fmt.Errorf("number must be greater than 0")
 	}
 	return nil
 }
