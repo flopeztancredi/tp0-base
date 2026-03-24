@@ -98,11 +98,7 @@ func (c *Client) StartClientLoop(ctx context.Context, r io.Reader) {
 		}
 	}
 
-	if err := c.sendDone(ctx); err != nil {
-		return
-	}
-
-	if err := c.queryWinners(ctx); err != nil {
+	if err := c.notifyAndQueryWinners(ctx); err != nil {
 		return
 	}
 
@@ -141,7 +137,7 @@ func (c *Client) sendBatch(ctx context.Context, bets []*bet.Bet) error {
 	return nil
 }
 
-func (c *Client) sendDone(ctx context.Context) error {
+func (c *Client) notifyAndQueryWinners(ctx context.Context) error {
 	if err := c.createClientSocket(); err != nil {
 		log.Errorf("action: connect | result: fail | client_id: %s | error: %s", c.config.ID, err)
 		return err
@@ -156,17 +152,7 @@ func (c *Client) sendDone(ctx context.Context) error {
 		log.Errorf("action: notificar_fin | result: fail | client_id: %s | error: %s", c.config.ID, err)
 		return err
 	}
-	return nil
-}
 
-func (c *Client) queryWinners(ctx context.Context) error {
-	if err := c.createClientSocket(); err != nil {
-		log.Errorf("action: connect | result: fail | client_id: %s | error: %s", c.config.ID, err)
-		return err
-	}
-	defer c.conn.Close()
-
-	agencyID, _ := strconv.ParseUint(c.config.ID, 10, 32)
 	if err := protocol.SendWinnersRequest(c.conn, uint32(agencyID)); err != nil {
 		if ctx.Err() != nil {
 			return err

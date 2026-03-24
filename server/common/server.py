@@ -5,16 +5,15 @@ import signal
 from common.utils import has_won, load_bets, store_bets
 from protocol.protocol import receive_incoming, receive_winners_request, send_winners_response, send_ack
 
-NUM_AGENCIES = 5
-
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, num_agencies):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._running = True
+        self._num_agencies = num_agencies
 
         # Register signal handler for graceful shutdown
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
@@ -33,24 +32,28 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        self.__receive_bets_phase()
+        done_sockets = self.__receive_bets_phase()
         if not self._running:
+            for s in done_sockets:
+                s.close()
             logging.info('action: graceful_shutdown | result: success')
             return
 
         self.__run_lottery()
-        self.__respond_winners_phase()
+        self.__respond_winners_phase(done_sockets)
         logging.info('action: graceful_shutdown | result: success')
     
     def __receive_bets_phase(self):
-        done_count = 0
-        while self._running and done_count < NUM_AGENCIES:
+        done_sockets = []
+        while self._running and len(done_sockets) < self._num_agencies:
             try:
                 client_sock = self.__accept_new_connection()
             except OSError:
                 break
-            if self.__handle_incoming(client_sock):
-                done_count += 1
+            done_sock = self.__handle_incoming(client_sock)
+            if done_sock:
+                done_sockets.append(done_sock)
+        return done_sockets
 
     def __handle_incoming(self, client_sock):
         """
@@ -65,19 +68,20 @@ class Server:
                 store_bets(data)
                 logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(data)}")
                 send_ack(client_sock, success=True)
-                return False
+                client_sock.close()
+                return None
             elif kind == "done":
                 logging.info(f"action: agencia_finalizada | result: success | id: {data}")
-                return True
+                return client_sock
         except ValueError as e:
             logging.error(f"action: apuesta_recibida | result: fail | error: {e}")
             send_ack(client_sock, success=False)
-            return False
+            client_sock.close()
+            return None
         except (OSError, ConnectionError) as e:
             logging.error(f"action: apuesta_recibida | result: fail | error: {e}")
-            return False
-        finally:
             client_sock.close()
+            return None
     
     def __run_lottery(self):
         self._winners_by_agency = {}
@@ -86,14 +90,11 @@ class Server:
                 self._winners_by_agency.setdefault(bet.agency, []).append(int(bet.document))
         logging.info('action: sorteo | result: success')
     
-    def __respond_winners_phase(self):
-        for _ in range(NUM_AGENCIES):
+    def __respond_winners_phase(self, done_sockets):
+        for client_sock in done_sockets:
             if not self._running:
-                break
-            try:
-                client_sock = self.__accept_new_connection()
-            except OSError:
-                break
+                client_sock.close()
+                continue
             self.__handle_winners_request(client_sock)
         
     def __handle_winners_request(self, client_sock):
