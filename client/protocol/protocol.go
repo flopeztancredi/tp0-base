@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/common"
+	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/bet"
 )
 
 const (
@@ -27,7 +27,7 @@ func recvExact(conn net.Conn, n int) ([]byte, error) {
 	return buf, nil
 }
 
-func SendBet(conn net.Conn, bet *common.Bet) error {
+func SendBet(conn net.Conn, bet *bet.Bet) error {
 	enc := NewEncoder()
 	enc.WriteUint8(MsgTypeBet)
 	enc.WriteUint32(bet.Agency)
@@ -50,7 +50,8 @@ func ReceiveAck(conn net.Conn) (bool, error) {
 	msgTypeBuf, err := recvExact(conn, 1)
 	if err != nil {
 		return false, err
-	} else if msgTypeBuf[0] != MsgTypeAck {
+	}
+	if msgTypeBuf[0] != MsgTypeAck {
 		return false, fmt.Errorf("expected message type %v but received %v", MsgTypeAck, msgTypeBuf[0])
 	}
 
