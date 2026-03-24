@@ -41,17 +41,13 @@ cat >> $OUTPUT_FILE << EOF
     entrypoint: /client
     environment:
       - CLI_ID=$i
-      - NOMBRE=Francisco
-      - APELLIDO=Lopez Tancredi
-      - DOCUMENTO=$((10000000 + i))
-      - NACIMIENTO=2000-01-01
-      - NUMERO=$((1000 + i))
     networks:
       - testing_net
     depends_on:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-$i.csv:/data/agency.csv
 
 EOF
 done
