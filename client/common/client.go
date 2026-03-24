@@ -3,8 +3,10 @@ package common
 import (
 	"context"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"net"
+	"strconv"
 
 	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/bet"
 	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/protocol"
@@ -96,6 +98,14 @@ func (c *Client) StartClientLoop(ctx context.Context, r io.Reader) {
 		}
 	}
 
+	if err := c.sendDone(ctx); err != nil {
+		return
+	}
+
+	if err := c.queryWinners(ctx); err != nil {
+		return
+	}
+
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
@@ -123,10 +133,57 @@ func (c *Client) sendBatch(ctx context.Context, bets []*bet.Bet) error {
 		return err
 	}
 
-	if success {
-		log.Infof("action: apuesta_enviada | result: success | client_id: %s | cantidad: %d", c.config.ID, len(bets))
-	} else {
+	if !success {
 		log.Errorf("action: apuesta_enviada | result: fail | client_id: %s | error: server returned failure", c.config.ID)
+		return fmt.Errorf("server couldn't store bet")
 	}
+	log.Infof("action: apuesta_enviada | result: success | client_id: %s | cantidad: %d", c.config.ID, len(bets))
+	return nil
+}
+
+func (c *Client) sendDone(ctx context.Context) error {
+	if err := c.createClientSocket(); err != nil {
+		log.Errorf("action: connect | result: fail | client_id: %s | error: %s", c.config.ID, err)
+		return err
+	}
+	defer c.conn.Close()
+
+	agencyID, _ := strconv.ParseUint(c.config.ID, 10, 32)
+	if err := protocol.SendDone(c.conn, uint32(agencyID)); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		log.Errorf("action: notificar_fin | result: fail | client_id: %s | error: %s", c.config.ID, err)
+		return err
+	}
+	return nil
+}
+
+func (c *Client) queryWinners(ctx context.Context) error {
+	if err := c.createClientSocket(); err != nil {
+		log.Errorf("action: connect | result: fail | client_id: %s | error: %s", c.config.ID, err)
+		return err
+	}
+	defer c.conn.Close()
+
+	agencyID, _ := strconv.ParseUint(c.config.ID, 10, 32)
+	if err := protocol.SendWinnersRequest(c.conn, uint32(agencyID)); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		log.Errorf("action: consulta_ganadores | result: fail | client_id: %s | error: %s", c.config.ID, err)
+		return err
+	}
+
+	winners, err := protocol.ReceiveWinnersResponse(c.conn)
+	if err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		log.Errorf("action: consulta_ganadores | result: fail | client_id: %s | error: %s", c.config.ID, err)
+		return err
+	}
+
+	log.Infof("action: consulta_ganadores | result: success | client_id: %s | cant_ganadores: %d", c.config.ID, len(winners))
 	return nil
 }
