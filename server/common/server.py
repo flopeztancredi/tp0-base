@@ -3,7 +3,7 @@ import logging
 import signal
 
 from common.utils import store_bets
-from protocol.protocol import receive_bet, send_ack
+from protocol.protocol import receive_batch, send_ack
 
 
 class Server:
@@ -48,9 +48,9 @@ class Server:
         client socket will also be closed
         """
         try:
-            bet = receive_bet(client_sock)
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+            bets = receive_batch(client_sock)
+            store_bets(bets)
+            logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(bets)}")
             send_ack(client_sock, success=True)
         except (OSError, ValueError, ConnectionError) as e:
             logging.error(f"action: apuesta_almacenada | result: fail | error: {e}")
