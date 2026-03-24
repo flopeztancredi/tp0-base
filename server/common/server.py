@@ -102,9 +102,9 @@ class Server:
             agency = receive_winners_request(client_sock)
             winners = self._winners_by_agency.get(agency, [])
             send_winners_response(client_sock, winners)
-            logging.info(f"action: consulta_ganadores | result: success | id: {agency} | cant_ganadores: {len(winners)}")
+            logging.info(f"action: winners_sent | result: success | id: {agency} | cant_ganadores: {len(winners)}")
         except (OSError, ValueError, ConnectionError) as e:
-            logging.error(f"action: consulta_ganadores | result: fail | error: {e}")
+            logging.error(f"action: winners_sent | result: fail | error: {e}")
         finally:
             client_sock.close()
 
