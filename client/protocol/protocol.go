@@ -14,19 +14,6 @@ const (
 	AckFailure uint8 = 0x01
 )
 
-func recvExact(conn net.Conn, n int) ([]byte, error) {
-	buf := make([]byte, n)
-	received := 0
-	for received < n {
-		r, err := conn.Read(buf[received:])
-		if err != nil {
-			return nil, err
-		}
-		received += r
-	}
-	return buf, nil
-}
-
 func SendBet(conn net.Conn, bet *bet.Bet) error {
 	enc := NewEncoder()
 	enc.WriteUint8(MsgTypeBet)
@@ -47,18 +34,18 @@ func SendBet(conn net.Conn, bet *bet.Bet) error {
 }
 
 func ReceiveAck(conn net.Conn) (bool, error) {
-	msgTypeBuf, err := recvExact(conn, 1)
-	if err != nil {
+	dec := NewDecoder(conn)
+	msgType := dec.ReadUint8()
+	if err := dec.Err(); err != nil {
 		return false, err
 	}
-	if msgTypeBuf[0] != MsgTypeAck {
-		return false, fmt.Errorf("expected message type %v but received %v", MsgTypeAck, msgTypeBuf[0])
+	if msgType != MsgTypeAck {
+		return false, fmt.Errorf("expected ack message, got %d", msgType)
 	}
 
-	statusBuf, err := recvExact(conn, 1)
-	if err != nil {
+	status := dec.ReadUint8()
+	if err := dec.Err(); err != nil {
 		return false, err
 	}
-
-	return statusBuf[0] == AckSuccess, nil
+	return status == AckSuccess, nil
 }
