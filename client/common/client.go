@@ -65,6 +65,11 @@ func (c *Client) StartClientLoop(ctx context.Context) {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		// Create the connection the server in every loop iteration. Send an
 		c.createClientSocket()
 
