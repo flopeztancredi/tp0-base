@@ -19,10 +19,10 @@ class Decoder:
         return self._recv_exact(length).decode('utf-8')
 
     def _recv_exact(self, n):
-        buf = b''
+        buf = bytearray()
         while len(buf) < n:
             chunk = self._sock.recv(n - len(buf))
             if not chunk:
                 raise ConnectionError("Connection closed")
             buf += chunk
-        return buf
+        return bytes(buf)
