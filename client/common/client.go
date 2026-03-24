@@ -1,12 +1,11 @@
 package common
 
 import (
-	"bufio"
 	"context"
-	"fmt"
 	"net"
-	"time"
 
+	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/bet"
+	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/protocol"
 	"github.com/op/go-logging"
 )
 
@@ -16,8 +15,6 @@ var log = logging.MustGetLogger("log")
 type ClientConfig struct {
 	ID            string
 	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
 }
 
 // Client Entity that encapsulates how
@@ -41,18 +38,14 @@ func NewClient(config ClientConfig) *Client {
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-		log.Criticalf(
-			"action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		return err
 	}
 	c.conn = conn
 	return nil
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop(ctx context.Context) {
+func (c *Client) StartClientLoop(ctx context.Context, bet *bet.Bet) {
 	go func() {
 		<-ctx.Done()
 		log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", c.config.ID)
@@ -62,38 +55,32 @@ func (c *Client) StartClientLoop(ctx context.Context) {
 		log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 	}()
 
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
+	if err := c.createClientSocket(); err != nil {
+		log.Criticalf("action: connect | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+	defer c.conn.Close()
 
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
+	if err := protocol.SendBet(c.conn, bet); err != nil {
+		if ctx.Err() != nil {
 			return
 		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
+		log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	success, err := protocol.ReceiveAck(c.conn)
+	if err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	if success {
+		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Document, bet.Number)
+	} else {
+		log.Errorf("action: apuesta_enviada | result: fail | dni: %v | numero: %v", bet.Document, bet.Number)
+	}
 }

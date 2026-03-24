@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 
+	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/bet"
 	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/common"
 )
 
@@ -37,8 +38,6 @@ func InitConfig() (*viper.Viper, error) {
 	// Add env variables supported
 	v.BindEnv("id")
 	v.BindEnv("server", "address")
-	v.BindEnv("loop", "period")
-	v.BindEnv("loop", "amount")
 	v.BindEnv("log", "level")
 
 	// Try to read configuration from config file. If config file
@@ -48,12 +47,6 @@ func InitConfig() (*viper.Viper, error) {
 	v.SetConfigFile("./config.yaml")
 	if err := v.ReadInConfig(); err != nil {
 		fmt.Printf("Configuration could not be read from config file. Using env variables instead")
-	}
-
-	// Parse time.Duration variables and return an error if those variables cannot be parsed
-
-	if _, err := time.ParseDuration(v.GetString("loop.period")); err != nil {
-		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_PERIOD env var as time.Duration.")
 	}
 
 	return v, nil
@@ -87,9 +80,31 @@ func PrintConfig(v *viper.Viper) {
 	log.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_amount: %v | loop_period: %v | log_level: %s",
 		v.GetString("id"),
 		v.GetString("server.address"),
-		v.GetInt("loop.amount"),
-		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
+	)
+}
+
+func InitBet(agencyID string) (*bet.Bet, error) {
+	v := viper.New()
+	v.AutomaticEnv()
+	v.BindEnv("nombre")
+	v.BindEnv("apellido")
+	v.BindEnv("documento")
+	v.BindEnv("nacimiento")
+	v.BindEnv("numero")
+
+	agency, err := strconv.ParseUint(agencyID, 10, 32)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not parse agency id %s as uint32", agencyID)
+	}
+
+	return bet.NewBet(
+		uint32(agency),
+		v.GetString("nombre"),
+		v.GetString("apellido"),
+		uint32(v.GetInt("documento")),
+		v.GetString("nacimiento"),
+		uint32(v.GetInt("numero")),
 	)
 }
 
@@ -106,16 +121,19 @@ func main() {
 	// Print program config with debugging purposes
 	PrintConfig(v)
 
+	bet, err := InitBet(v.GetString("id"))
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
+
 	clientConfig := common.ClientConfig{
 		ServerAddress: v.GetString("server.address"),
 		ID:            v.GetString("id"),
-		LoopAmount:    v.GetInt("loop.amount"),
-		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
 	client := common.NewClient(clientConfig)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
 
-	client.StartClientLoop(ctx)
+	client.StartClientLoop(ctx, bet)
 }
