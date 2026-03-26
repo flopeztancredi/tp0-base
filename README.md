@@ -46,8 +46,28 @@ Se implementó el script `validar-echo-server.sh` para verificar la disponibilid
 ```
 El script envía un mensaje al servidor y valida que la respuesta sea idéntica al envío (Echo Server).
 
-### Implementación
-
+### Notas de Implementación
 * **Contenedor Temporal**: El script lanza un contenedor de `alpine:latest` unido a la red `tp0_testing_net`.
 * **Comunicación Interna**: Se utiliza el comando `nc` (Netcat) para enviar el mensaje directamente al host `server` en el puerto `12345`.
 * **Resultado**: El script reporta `success` si los mensajes coinciden, o `fail` en caso contrario o por timeout.
+
+## Ejercicio 4: Graceful Shutdown
+Se implementó el manejo de señales del sistema operativo para asegurar un cierre limpio de los recursos (sockets, archivos y descriptores) ante una interrupción.
+
+### Uso
+Al ejecutar `make docker-compose-down` o enviar una señal `SIGTERM` (Ctrl+C en la terminal de logs), los servicios registrarán los logs de cierre y finalizarán correctamente.
+
+### Ejemplo de Graceful Shutdown
+Al detener el entorno con `make docker-compose-down`, se puede observar en los logs la captura de la señal y el cierre de recursos:
+
+```bash
+server   | 2026-03-26 03:25:49 INFO     action: graceful_shutdown | result: in_progress
+server   | 2026-03-26 03:25:49 INFO     action: graceful_shutdown | result: success
+client1  | 2026-03-26 03:25:47 INFO     action: graceful_shutdown | result: in_progress | client_id: 1
+client1  | 2026-03-26 03:25:47 INFO     action: graceful_shutdown | result: success | client_id: 1
+```
+
+### Notas de Implementación
+* **Servidor (Python)**: Se utilizó el módulo `signal` para capturar `SIGTERM`. Al recibirse la señal, el servidor cierra el socket principal de escucha, lo que rompe el bloqueo del `accept()` y permite una salida controlada del bucle principal.
+* **Cliente (Go)**: Se implementó mediante `signal.NotifyContext` de la librería estándar. El ciclo de vida del cliente está atado a un contexto que se cancela al recibir la señal, permitiendo cerrar la conexión activa y abortar iteraciones pendientes mediante un `select`.
+* **Logs**: Se añadieron mensajes con el formato `action: graceful_shutdown | result: in_progress/success` para validar la secuencia de cierre en ambos lenguajes.
