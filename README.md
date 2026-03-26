@@ -130,3 +130,20 @@ Se añadió un nuevo tipo de mensaje (`0x03`) para el envío de lotes:
 ### Implementación del Servidor
 * **Atomicidad**: El servidor recibe el lote completo y persiste cada apuesta en la base de datos (archivo) de forma secuencial.
 * **Respuesta**: Se envía un único ACK por cada lote procesado, simplificando el flujo de confirmación.
+
+## Ejercicio 7: Sincronización y Sorteo
+Se implementó un mecanismo de control para asegurar que el sorteo de ganadores solo se realice una vez que todas las agencias hayan finalizado la carga de sus apuestas.
+
+### Nuevos Mensajes del Protocolo
+Se agregaron tipos de mensajes para coordinar el fin de la carga y la consulta de resultados:
+* **Done** (`0x04`): Enviado por el cliente para notificar que terminó de enviar todas sus apuestas.
+* **Winners Request** (`0x05`): Enviado por el cliente para solicitar la lista de documentos ganadores.
+* **Winners Response** (`0x06`): Enviado por el servidor con la lista de ganadores (un `uint16` para la cantidad, seguido de los DNIs como `uint32`).
+
+### Lógica de Sincronización (Fase 1: Recolección)
+El servidor opera en un ciclo de dos fases para garantizar la integridad de los datos:
+1. **Espera de Agencias**: El servidor mantiene un contador de agencias activas. A medida que recibe mensajes `Done`, marca a la agencia como finalizada pero **mantiene el socket abierto**.
+2. **Sorteo**: Una vez que las $N$ agencias (configuradas por `SERVER_NUM_AGENCIES`) enviaron su notificación, el servidor procede a realizar el sorteo recorriendo la base de datos de apuestas.
+
+### Lógica de Respuesta (Fase 2: Distribución)
+3. **Notificación de Ganadores**: Con el sorteo realizado, el servidor retoma los sockets en espera y responde a cada agencia con su lista particular de ganadores (aquellos documentos que pertenecen a esa agencia y salieron sorteados).
