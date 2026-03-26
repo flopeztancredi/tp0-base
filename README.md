@@ -110,3 +110,23 @@ Esto permite manejar nombres de cualquier longitud de forma segura y eficiente.
 
 ### Manejo de Short-Reads y Sincronismo
 TCP es un protocolo orientado a flujo, lo que implica que los mensajes pueden llegar fragmentados. Para garantizar la integridad, se implementó la función `recv_exact`, que bloquea la lectura hasta que se haya recibido la cantidad exacta de bytes esperada para cada campo del protocolo.
+
+## Ejercicio 6: Procesamiento por Lotes (Batching)
+Se optimizó el protocolo y la lógica de envío para permitir el procesamiento de apuestas en lotes (*batches*), reduciendo el overhead de apertura/cierre de conexiones TCP y mejorando el throughput del sistema.
+
+### Modificación del Protocolo
+Se añadió un nuevo tipo de mensaje (`0x03`) para el envío de lotes:
+| Campo | Tipo | Tamaño | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Tipo** | `uint8` | 1 byte | Valor constante `0x03`. |
+| **Cantidad** | `uint16` | 2 bytes | Número de apuestas contenidas en el lote ($M$). |
+| **Cuerpo** | `bytes` | Variable | Concatenación de $M$ estructuras de apuesta (sin el byte de tipo individual). |
+
+### Implementación del Cliente
+* **Lectura de CSV**: El cliente lee las apuestas desde un archivo `.csv` inyectado mediante volúmenes.
+* **Agrupamiento**: Se acumulan las apuestas en memoria hasta alcanzar un tamaño máximo definido por configuración (`BATCH_MAX_AMOUNT`), luego del cual se envía el lote completo al servidor en una sola conexión TCP.
+* **Drenaje**: Al finalizar el archivo, se realiza un envío final con las apuestas remanentes para asegurar que no se pierda ninguna transacción.
+
+### Implementación del Servidor
+* **Atomicidad**: El servidor recibe el lote completo y persiste cada apuesta en la base de datos (archivo) de forma secuencial.
+* **Respuesta**: Se envía un único ACK por cada lote procesado, simplificando el flujo de confirmación.
