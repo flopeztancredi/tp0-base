@@ -71,3 +71,42 @@ client1  | 2026-03-26 03:25:47 INFO     action: graceful_shutdown | result: succ
 * **Servidor (Python)**: Se utilizó el módulo `signal` para capturar `SIGTERM`. Al recibirse la señal, el servidor cierra el socket principal de escucha, lo que rompe el bloqueo del `accept()` y permite una salida controlada del bucle principal.
 * **Cliente (Go)**: Se implementó mediante `signal.NotifyContext` de la librería estándar. El ciclo de vida del cliente está atado a un contexto que se cancela al recibir la señal, permitiendo cerrar la conexión activa y abortar iteraciones pendientes mediante un `select`.
 * **Logs**: Se añadieron mensajes con el formato `action: graceful_shutdown | result: in_progress/success` para validar la secuencia de cierre en ambos lenguajes.
+
+## Ejercicio 5: Protocolo de Comunicación y Serialización
+Se diseñó e implementó un protocolo binario para la comunicación entre las agencias (los clientes) y el servidor, prescindiendo de librerías de alto nivel (como JSON) y manejando la serialización de forma manual en Big-Endian.
+
+### Especificación de los Mensajes
+
+#### 1. Mensaje de Apuesta (`0x01`)
+Enviado por la agencia hacia el servidor.
+| Campo | Tipo | Tamaño | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Tipo** | `uint8` | 1 byte | Valor constante `0x01`. |
+| **ID Agencia** | `uint32` | 4 bytes | Identificador único de la agencia. |
+| **Nombre** | `string` | 2 + N bytes | Longitud (`uint16`) seguido del texto UTF-8. |
+| **Apellido** | `string` | 2 + N bytes | Longitud (`uint16`) seguido del texto UTF-8. |
+| **DNI** | `uint32` | 4 bytes | Documento del apostador. |
+| **Nacimiento** | `fixed` | 10 bytes | Fecha en formato `YYYY-MM-DD`. |
+| **Número** | `uint32` | 4 bytes | Número apostado. |
+
+#### 2. Mensaje de ACK (`0x02`)
+Enviado por el servidor como respuesta.
+| Campo | Tipo | Tamaño | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Tipo** | `uint8` | 1 byte | Valor constante `0x02`. |
+| **Estado** | `uint8` | 1 byte | `0x00` (Éxito) o `0x01` (Fallo). |
+
+### Flujo de Comunicación
+El protocolo opera bajo un esquema sincrónico:
+1. **Conexión**: El cliente establece una conexión TCP por cada apuesta enviada.
+2. **Serialización**: Los datos se empaquetan en un buffer de bytes para realizar un único envío (`write`), evitando la fragmentación excesiva.
+3. **Confirmación**: El servidor debe responder obligatoriamente con un ACK. El cliente espera este mensaje antes de cerrar el socket para asegurar que la central recibió la apuesta.
+
+### Detalle de Implementación: Strings Dinámicas
+Los strings no tienen un tamaño fijo, sino que se envían con un prefijo de longitud:
+* Se envían 2 bytes (`uint16`) con la longitud $N$ de la cadena.
+* Inmediatamente después se envían los $N$ bytes del contenido.
+Esto permite manejar nombres de cualquier longitud de forma segura y eficiente.
+
+### Manejo de Short-Reads y Sincronismo
+TCP es un protocolo orientado a flujo, lo que implica que los mensajes pueden llegar fragmentados. Para garantizar la integridad, se implementó la función `recv_exact`, que bloquea la lectura hasta que se haya recibido la cantidad exacta de bytes esperada para cada campo del protocolo.
