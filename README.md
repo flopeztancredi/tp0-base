@@ -36,3 +36,18 @@ Al ejecutar este comando, los servicios se inician utilizando los archivos de co
 ### Implementación
 
 * **Montaje de Volúmenes**: Se configuraron volúmenes en el `docker-compose-dev.yaml` para mapear los archivos de configuración desde el host a los contenedores.
+
+## Ejercicio 3: Networking y Validación de Conectividad
+Se implementó el script `validar-echo-server.sh` para verificar la disponibilidad del servidor sin exponer puertos al host externo, utilizando la red interna de Docker.
+
+### Uso
+```bash
+./validar-echo-server.sh
+```
+El script envía un mensaje al servidor y valida que la respuesta sea idéntica al envío (Echo Server).
+
+### Implementación
+
+* **Contenedor Temporal**: El script lanza un contenedor de `alpine:latest` unido a la red `tp0_testing_net`.
+* **Comunicación Interna**: Se utiliza el comando `nc` (Netcat) para enviar el mensaje directamente al host `server` en el puerto `12345`.
+* **Resultado**: El script reporta `success` si los mensajes coinciden, o `fail` en caso contrario o por timeout.
